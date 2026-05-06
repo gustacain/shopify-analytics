@@ -30,6 +30,20 @@ app.use('/api/webhook',     require('./routes/webhook'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
+// Diagnóstico: contagem de eventos por tipo nos últimos 7 dias
+app.get('/api/debug/event-types', (_req, res) => {
+  const db = require('./db');
+  const rows = db.prepare(`
+    SELECT event_type, COUNT(*) AS total, COUNT(DISTINCT session_id) AS sessions,
+           MAX(created_at) AS last_seen
+    FROM events
+    WHERE created_at >= datetime('now', '-7 days')
+    GROUP BY event_type
+    ORDER BY total DESC
+  `).all();
+  res.json({ window: '7d', event_types: rows });
+});
+
 app.use((err, _req, res, _next) => {
   console.error(err.message);
   res.status(500).json({ error: err.message });
