@@ -27,7 +27,7 @@ async function capture(url) {
       else req.continue();
     });
 
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
     return await page.screenshot({
       type:    'jpeg',
