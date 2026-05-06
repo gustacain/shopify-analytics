@@ -9,7 +9,7 @@ function buildScreenshotUrl(storeUrl, pagePath, nocache = false) {
   const base   = storeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const path   = pagePath.startsWith('/') ? pagePath : '/' + pagePath;
   const target = encodeURIComponent(`https://${base}${path}`);
-  return `/api/screenshot?url=${target}${nocache ? '&nocache=1' : ''}`;
+  return `https://efficient-love-production-2ed0.up.railway.app/api/screenshot?url=${target}${nocache ? '&nocache=1' : ''}`;
 }
 
 export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
