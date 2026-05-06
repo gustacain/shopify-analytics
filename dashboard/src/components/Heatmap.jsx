@@ -4,14 +4,12 @@ import { api } from '../api';
 const SCREENSHOT_W = 1440;
 const SCREENSHOT_H = 900;
 
-function buildScreenshotUrl(storeUrl, pagePath, bust = 0) {
+function buildScreenshotUrl(storeUrl, pagePath, nocache = false) {
   if (!storeUrl || !pagePath) return null;
   const base   = storeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const path   = pagePath.startsWith('/') ? pagePath : '/' + pagePath;
   const target = encodeURIComponent(`https://${base}${path}`);
-  // WordPress mshots — gratuito, sem API key; pode demorar ~30s na primeira captura
-  const cb = bust ? `&_=${bust}` : '';
-  return `https://s0.wordpress.com/mshots/v1/${target}?w=${SCREENSHOT_W}&vpw=${SCREENSHOT_W}${cb}`;
+  return `/api/screenshot?url=${target}${nocache ? '&nocache=1' : ''}`;
 }
 
 export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
@@ -23,7 +21,6 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
   const [error, setError]  = useState('');
   const [screenshotUrl, setScreenshotUrl] = useState(null);
   const [imgStatus, setImgStatus] = useState('idle'); // idle | loading | ok | error
-  const [screenshotBust, setScreenshotBust] = useState(0);
 
   const draw = useCallback((clicks) => {
     const canvas = canvasRef.current;
@@ -88,7 +85,7 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
 
     if (s) {
       localStorage.setItem('sa_store_url', s);
-      setScreenshotUrl(buildScreenshotUrl(s, p, screenshotBust));
+      setScreenshotUrl(buildScreenshotUrl(s, p));
       setImgStatus('loading');
     }
 
@@ -193,19 +190,14 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
         {/* Screenshot status overlays */}
         {imgStatus === 'loading' && (
           <div style={overlayStyle}>
-            <Spinner /> Gerando screenshot… pode levar até 30s na primeira vez.
+            <Spinner /> Gerando screenshot…
           </div>
         )}
         {imgStatus === 'error' && (
           <div style={{ ...overlayStyle, flexDirection: 'column', gap: 10 }}>
-            <span style={{ color: '#f87171' }}>Screenshot indisponível. Verifique o domínio ou tente novamente.</span>
+            <span style={{ color: '#f87171' }}>Falha ao gerar screenshot. Verifique o domínio ou tente novamente.</span>
             <button
-              onClick={() => {
-                const bust = Date.now();
-                setScreenshotBust(bust);
-                setScreenshotUrl(buildScreenshotUrl(storeUrl, page, bust));
-                setImgStatus('loading');
-              }}
+              onClick={() => { setScreenshotUrl(buildScreenshotUrl(storeUrl, page, true)); setImgStatus('loading'); }}
               style={btnStyle(false)}
             >
               🔄 Tentar novamente
@@ -234,12 +226,7 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
       {screenshotUrl && imgStatus === 'ok' && (
         <div style={{ marginTop: 8, textAlign: 'right' }}>
           <button
-            onClick={() => {
-              const bust = Date.now();
-              setScreenshotBust(bust);
-              setScreenshotUrl(buildScreenshotUrl(storeUrl, page, bust));
-              setImgStatus('loading');
-            }}
+            onClick={() => { setScreenshotUrl(buildScreenshotUrl(storeUrl, page, true)); setImgStatus('loading'); }}
             style={{ background: 'none', border: 'none', color: '#475569', fontSize: 12, cursor: 'pointer', padding: 0 }}
           >
             🔄 Atualizar screenshot

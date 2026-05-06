@@ -26,6 +26,7 @@ app.use('/api/funnel',      require('./routes/funnel'));
 app.use('/api/scroll-depth',require('./routes/scrollDepth'));
 app.use('/api/pages',       require('./routes/pages'));
 app.use('/api/shopify',     require('./routes/shopify'));
+app.use('/api/screenshot',  require('./routes/screenshot'));
 app.use('/api/webhook',     require('./routes/webhook'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
