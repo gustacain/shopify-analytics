@@ -29,11 +29,13 @@ async function capture(url) {
 
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-    return await page.screenshot({
+    const raw = await page.screenshot({
       type:    'jpeg',
       quality: 80,
       clip:    { x: 0, y: 0, width: 1440, height: 900 },
     });
+    // puppeteer-core v23+ retorna Uint8Array; garante Buffer para res.send()
+    return Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
   } finally {
     await browser.close().catch(() => {});
   }
