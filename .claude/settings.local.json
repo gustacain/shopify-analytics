@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(xcode-select -p)",
+      "Bash(node server.js)",
+      "Bash(curl -s http://localhost:3001/api/health)",
+      "Bash(curl -s -X POST http://localhost:3001/api/events -H 'Content-Type: application/json' -d '[{\"session_id\":\"test_1\",\"event_type\":\"page_view\",\"page_url\":\"/products/camiseta\",\"device_type\":\"desktop\",\"screen_width\":1440,\"screen_height\":900,\"viewport_width\":1440,\"viewport_height\":900},{\"session_id\":\"test_1\",\"event_type\":\"click\",\"page_url\":\"/products/camiseta\",\"x\":320,\"y\":480,\"viewport_width\":1440,\"viewport_height\":900,\"element\":\"button.btn-add-cart\",\"device_type\":\"desktop\"},{\"session_id\":\"test_1\",\"event_type\":\"scroll\",\"page_url\":\"/products/camiseta\",\"scroll_percent\":50,\"device_type\":\"desktop\"},{\"session_id\":\"test_2\",\"event_type\":\"page_view\",\"page_url\":\"/cart\",\"device_type\":\"mobile\"},{\"session_id\":\"test_3\",\"event_type\":\"page_view\",\"page_url\":\"/checkout/step1\",\"device_type\":\"desktop\"}]')",
+      "Bash(kill %1)",
+      "Bash(curl -s -X POST http://localhost:3001/api/events -H 'Content-Type: application/json' -d '[ *)",
+      "Bash(curl -s \"http://localhost:3001/api/funnel\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); d.funnel.forEach\\(s=>console.log\\(s.label+': '+s.sessions+' sessões \\(conv: '+s.conversion_from_prev+'%\\)'\\)\\)\")",
+      "Bash(curl -s \"http://localhost:3001/api/scroll-depth\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); console.log\\('Total sessions:', d.total_sessions\\); d.scroll_depth.forEach\\(s=>console.log\\(s.threshold+'%: '+s.pct+'%'\\)\\)\")",
+      "Bash(curl -s \"http://localhost:3001/api/sessions\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); console.log\\('Total:', d.total, 'sessions listed:', d.sessions.length\\)\")",
+      "Bash(curl -s \"http://localhost:3001/api/heatmap?page=/products/tenis\")",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\); console.log\\('Clicks:', d.total, '| Top element:', d.top_elements[0]?.element\\)\")",
+      "Bash(npm run *)",
+      "Bash(curl *)",
+      "Bash(railway --version)",
+      "Bash(railway login *)",
+      "Bash(railway init *)",
+      "Bash(railway up *)",
+      "Bash(railway status *)",
+      "Bash(railway logs *)",
+      "Bash(railway service *)",
+      "Bash(railway domain *)",
+      "Bash(railway volume *)",
+      "Bash(railway variables *)",
+      "Bash(node -e ' *)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}

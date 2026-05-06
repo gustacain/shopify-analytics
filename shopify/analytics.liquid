@@ -1,0 +1,199 @@
+{% comment %}
+  shopify-analytics — Behavioral Analytics Snippet
+  ─────────────────────────────────────────────────
+  Instale em: Loja online → Temas → Editar código → snippets/shopify-analytics.liquid
+  Use em theme.liquid (antes de </body>):
+    {% render 'shopify-analytics', api_url: 'https://SUA-API.com' %}
+
+  Parâmetros (todos opcionais):
+    api_url          — URL do seu servidor de analytics (padrão: http://localhost:3001)
+    mouse_interval   — Intervalo de amostragem do mouse em ms (padrão: 500)
+    batch_interval   — Intervalo de envio em lote em ms (padrão: 3000)
+    batch_size       — Máximo de eventos por batch (padrão: 15)
+{% endcomment %}
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Configuração ─────────────────────────────────────────────────── */
+  var CFG = {
+    apiUrl:         '{{ api_url | default: "http://localhost:3001" }}',
+    mouseInterval:  {{ mouse_interval  | default: 500  }},
+    batchInterval:  {{ batch_interval  | default: 3000 }},
+    batchSize:      {{ batch_size      | default: 15   }},
+    scrollSteps:    [25, 50, 75, 100],
+  };
+
+  /* ── Identidade da sessão ─────────────────────────────────────────── */
+  function getSessionId() {
+    try {
+      var key = '_sa_sid';
+      var sid = sessionStorage.getItem(key);
+      if (!sid) {
+        sid = 'sa_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
+        sessionStorage.setItem(key, sid);
+      }
+      return sid;
+    } catch (e) {
+      return 'sa_' + Date.now().toString(36);
+    }
+  }
+
+  /* ── Detecção de device ───────────────────────────────────────────── */
+  function getDevice() {
+    var ua = navigator.userAgent;
+    if (/Mobi|Android|iPhone|iPod/i.test(ua))      return 'mobile';
+    if (/Tablet|iPad|PlayBook|Silk/i.test(ua))      return 'tablet';
+    return 'desktop';
+  }
+
+  /* ── Estado global ────────────────────────────────────────────────── */
+  var SESSION_ID   = getSessionId();
+  var PAGE_URL     = window.location.pathname;
+  var DEVICE       = getDevice();
+  var PAGE_START   = Date.now();
+  var queue        = [];
+  var scrollFired  = {};
+  var lastMouse    = null;
+
+  /* ── Fábrica de evento base ───────────────────────────────────────── */
+  function base(type, extra) {
+    return Object.assign({
+      session_id:      SESSION_ID,
+      event_type:      type,
+      page_url:        PAGE_URL,
+      device_type:     DEVICE,
+      screen_width:    screen.width,
+      screen_height:   screen.height,
+      viewport_width:  window.innerWidth,
+      viewport_height: window.innerHeight,
+      user_agent:      navigator.userAgent.slice(0, 200),
+      time_on_page:    Math.round((Date.now() - PAGE_START) / 1000),
+    }, extra || {});
+  }
+
+  /* ── Fila e envio ─────────────────────────────────────────────────── */
+  function enqueue(evt) {
+    queue.push(evt);
+    if (queue.length >= CFG.batchSize) flush();
+  }
+
+  function flush() {
+    if (!queue.length) return;
+    var batch   = queue.splice(0);
+    var url     = CFG.apiUrl + '/api/events';
+    var payload = JSON.stringify(batch);
+
+    /* sendBeacon com text/plain — requisição "simple", sem preflight CORS.
+       O backend aceita text/plain e faz o parse como JSON. */
+    if (navigator.sendBeacon && navigator.sendBeacon(url, payload)) {
+      return;
+    }
+
+    /* Fallback fetch */
+    try {
+      fetch(url, {
+        method:    'POST',
+        headers:   { 'Content-Type': 'application/json' },
+        body:      payload,
+        keepalive: true,
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  /* ── Page view ────────────────────────────────────────────────────── */
+  enqueue(base('page_view'));
+
+  /* ── Cliques ──────────────────────────────────────────────────────── */
+  document.addEventListener('click', function (e) {
+    var el  = e.target || {};
+    var tag = (el.tagName || '').toLowerCase();
+    var id  = el.id ? '#' + el.id : '';
+    var cls = el.className && typeof el.className === 'string'
+      ? '.' + el.className.trim().replace(/\s+/g, '.') : '';
+    var text = (el.innerText || el.value || '').slice(0, 50).replace(/\s+/g, ' ').trim();
+
+    enqueue(base('click', {
+      x:       e.clientX,
+      y:       e.clientY,
+      viewport_width:  window.innerWidth,
+      viewport_height: window.innerHeight,
+      element: (tag + id + cls).slice(0, 200),
+      metadata: text ? { text: text } : null,
+    }));
+  }, { passive: true });
+
+  /* ── Scroll depth ─────────────────────────────────────────────────── */
+  function checkScroll() {
+    var docH = Math.max(
+      document.body.scrollHeight, document.documentElement.scrollHeight,
+      document.body.offsetHeight, document.documentElement.offsetHeight
+    ) - window.innerHeight;
+
+    if (docH <= 0) return;
+    var pct = Math.min(100, Math.round((window.scrollY / docH) * 100));
+
+    CFG.scrollSteps.forEach(function (step) {
+      if (pct >= step && !scrollFired[step]) {
+        scrollFired[step] = true;
+        enqueue(base('scroll', { scroll_percent: step }));
+      }
+    });
+  }
+
+  var scrollThrottle = null;
+  window.addEventListener('scroll', function () {
+    if (scrollThrottle) return;
+    scrollThrottle = setTimeout(function () { scrollThrottle = null; checkScroll(); }, 200);
+  }, { passive: true });
+
+  /* ── Movimento do mouse (amostrado a cada 500 ms) ─────────────────── */
+  document.addEventListener('mousemove', function (e) {
+    lastMouse = { clientX: e.clientX, clientY: e.clientY };
+  }, { passive: true });
+
+  var mouseTimer = setInterval(function () {
+    if (!lastMouse) return;
+    enqueue(base('mouse_move', {
+      x:               lastMouse.clientX,
+      y:               lastMouse.clientY,
+      viewport_width:  window.innerWidth,
+      viewport_height: window.innerHeight,
+    }));
+    lastMouse = null;
+  }, CFG.mouseInterval);
+
+  /* ── Flush periódico ─────────────────────────────────────────────── */
+  var flushTimer = setInterval(flush, CFG.batchInterval);
+
+  /* ── Page exit ───────────────────────────────────────────────────── */
+  window.addEventListener('beforeunload', function () {
+    clearInterval(mouseTimer);
+    clearInterval(flushTimer);
+    enqueue(base('page_exit', {
+      time_on_page: Math.round((Date.now() - PAGE_START) / 1000),
+    }));
+    flush();
+  });
+
+  /* ── SPA: redetectar URL em pushState / popstate ─────────────────── */
+  (function () {
+    var orig = history.pushState;
+    history.pushState = function () {
+      orig.apply(this, arguments);
+      PAGE_URL   = window.location.pathname;
+      PAGE_START = Date.now();
+      scrollFired = {};
+      enqueue(base('page_view'));
+    };
+    window.addEventListener('popstate', function () {
+      PAGE_URL   = window.location.pathname;
+      PAGE_START = Date.now();
+      scrollFired = {};
+      enqueue(base('page_view'));
+    });
+  })();
+
+})();
+</script>

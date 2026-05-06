@@ -1,0 +1,11 @@
+node_modules/
+backend/node_modules/
+dashboard/node_modules/
+backend/analytics.db
+backend/analytics.db-shm
+backend/analytics.db-wal
+dist/
+dashboard/dist/
+.env
+.env.local
+*.log
