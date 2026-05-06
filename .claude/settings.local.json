@@ -30,7 +30,19 @@
       "Bash(railway variables *)",
       "Bash(node -e ' *)",
       "Bash(git init *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(gh auth *)",
+      "Bash(brew install *)",
+      "Bash(gh repo *)",
+      "Read(//Users/thinkeight/.config/gh/**)",
+      "Bash(security find-generic-password *)",
+      "Bash(git push *)",
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 -c ' *)",
+      "Bash(git -C /Users/thinkeight/shopify-analytics add backend/server.js)",
+      "Bash(git -C /Users/thinkeight/shopify-analytics commit -m ' *)",
+      "Bash(git -C /Users/thinkeight/shopify-analytics push origin main)"
     ]
   }
 }
