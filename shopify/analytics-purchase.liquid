@@ -1,0 +1,46 @@
+{% comment %}
+  ════════════════════════════════════════════════════════════════════
+  Shopify Analytics — Evento de compra (Web Pixel / Customer Events)
+  ════════════════════════════════════════════════════════════════════
+
+  ONDE COLAR:
+    Painel Shopify → Configurações → Customer events
+    → "Adicionar pixel personalizado"
+    → Cole o bloco <script> abaixo no editor de código do pixel
+
+  Funciona em TODAS as lojas Shopify (não requer Plus).
+  Dispara apenas uma vez por pedido (checkout_completed).
+  ════════════════════════════════════════════════════════════════════
+{% endcomment %}
+
+<script>
+analytics.subscribe('checkout_completed', function (event) {
+  var checkout = (event.data && event.data.checkout) || {};
+  var order    = checkout.order || {};
+  var price    = checkout.totalPrice || {};
+
+  var payload = JSON.stringify([{
+    session_id:      'pur_' + (order.id || event.id || Date.now().toString(36)),
+    event_type:      'purchase',
+    page_url:        '/checkout/thank_you',
+    device_type:     'unknown',
+    screen_width:    0,
+    screen_height:   0,
+    viewport_width:  0,
+    viewport_height: 0,
+    user_agent:      '',
+    time_on_page:    0,
+    metadata: {
+      order_id:    order.id   || '',
+      order_total: price.amount       || '',
+      currency:    price.currencyCode || checkout.currencyCode || '',
+    },
+  }]);
+
+  /* browser.sendBeacon é a API disponível dentro do sandbox de Web Pixels */
+  browser.sendBeacon(
+    'https://efficient-love-production-2ed0.up.railway.app/api/events',
+    payload
+  );
+});
+</script>

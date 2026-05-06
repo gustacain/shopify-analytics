@@ -6,7 +6,7 @@
     {% render 'shopify-analytics', api_url: 'https://SUA-API.com' %}
 
   Parâmetros (todos opcionais):
-    api_url          — URL do seu servidor de analytics (padrão: http://localhost:3001)
+    api_url          — URL do servidor de analytics (padrão: http://localhost:3001)
     mouse_interval   — Intervalo de amostragem do mouse em ms (padrão: 500)
     batch_interval   — Intervalo de envio em lote em ms (padrão: 3000)
     batch_size       — Máximo de eventos por batch (padrão: 15)
@@ -18,11 +18,11 @@
 
   /* ── Configuração ─────────────────────────────────────────────────── */
   var CFG = {
-    apiUrl:         '{{ api_url | default: "http://localhost:3001" }}',
-    mouseInterval:  {{ mouse_interval  | default: 500  }},
-    batchInterval:  {{ batch_interval  | default: 3000 }},
-    batchSize:      {{ batch_size      | default: 15   }},
-    scrollSteps:    [25, 50, 75, 100],
+    apiUrl:        '{{ api_url | default: "http://localhost:3001" }}',
+    mouseInterval: {{ mouse_interval | default: 500  }},
+    batchInterval: {{ batch_interval | default: 3000 }},
+    batchSize:     {{ batch_size     | default: 15   }},
+    scrollSteps:   [25, 50, 75, 100],
   };
 
   /* ── Identidade da sessão ─────────────────────────────────────────── */
@@ -43,19 +43,19 @@
   /* ── Detecção de device ───────────────────────────────────────────── */
   function getDevice() {
     var ua = navigator.userAgent;
-    if (/Mobi|Android|iPhone|iPod/i.test(ua))      return 'mobile';
-    if (/Tablet|iPad|PlayBook|Silk/i.test(ua))      return 'tablet';
+    if (/Mobi|Android|iPhone|iPod/i.test(ua)) return 'mobile';
+    if (/Tablet|iPad|PlayBook|Silk/i.test(ua)) return 'tablet';
     return 'desktop';
   }
 
   /* ── Estado global ────────────────────────────────────────────────── */
-  var SESSION_ID   = getSessionId();
-  var PAGE_URL     = window.location.pathname;
-  var DEVICE       = getDevice();
-  var PAGE_START   = Date.now();
-  var queue        = [];
-  var scrollFired  = {};
-  var lastMouse    = null;
+  var SESSION_ID  = getSessionId();
+  var PAGE_URL    = window.location.pathname;
+  var DEVICE      = getDevice();
+  var PAGE_START  = Date.now();
+  var queue       = [];
+  var scrollFired = {};
+  var lastMouse   = null;
 
   /* ── Fábrica de evento base ───────────────────────────────────────── */
   function base(type, extra) {
@@ -85,19 +85,13 @@
     var url     = CFG.apiUrl + '/api/events';
     var payload = JSON.stringify(batch);
 
-    /* sendBeacon com text/plain — requisição "simple", sem preflight CORS.
-       O backend aceita text/plain e faz o parse como JSON. */
-    if (navigator.sendBeacon && navigator.sendBeacon(url, payload)) {
-      return;
-    }
+    /* sendBeacon com text/plain evita preflight CORS */
+    if (navigator.sendBeacon && navigator.sendBeacon(url, payload)) return;
 
-    /* Fallback fetch */
     try {
       fetch(url, {
-        method:    'POST',
-        headers:   { 'Content-Type': 'application/json' },
-        body:      payload,
-        keepalive: true,
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: payload, keepalive: true,
       }).catch(function () {});
     } catch (e) {}
   }
@@ -105,7 +99,7 @@
   /* ── Page view ────────────────────────────────────────────────────── */
   enqueue(base('page_view'));
 
-  /* ── Cliques ──────────────────────────────────────────────────────── */
+  /* ── Cliques (inclui detecção de link para checkout) ─────────────── */
   document.addEventListener('click', function (e) {
     var el  = e.target || {};
     var tag = (el.tagName || '').toLowerCase();
@@ -115,14 +109,67 @@
     var text = (el.innerText || el.value || '').slice(0, 50).replace(/\s+/g, ' ').trim();
 
     enqueue(base('click', {
-      x:       e.clientX,
-      y:       e.clientY,
+      x:               e.clientX,
+      y:               e.clientY,
       viewport_width:  window.innerWidth,
       viewport_height: window.innerHeight,
-      element: (tag + id + cls).slice(0, 200),
-      metadata: text ? { text: text } : null,
+      element:         (tag + id + cls).slice(0, 200),
+      metadata:        text ? { text: text } : null,
     }));
+
+    /* Clique em link <a href="...checkout..."> */
+    var anchor = tag === 'a' ? el : (el.closest ? el.closest('a') : null);
+    if (anchor && anchor.href && /\/checkout/.test(anchor.href)) {
+      enqueue(base('checkout_start', {}));
+      flush();
+    }
   }, { passive: true });
+
+  /* ── Form submit: add_to_cart e checkout_start ────────────────────── */
+  document.addEventListener('submit', function (e) {
+    var form   = e.target;
+    var action = (form && form.action) ? form.action : '';
+    if (/\/cart\/add/.test(action)) {
+      enqueue(base('add_to_cart', {}));
+      flush();
+    }
+    if (/\/checkout/.test(action)) {
+      enqueue(base('checkout_start', {}));
+      flush();
+    }
+  }, { passive: true });
+
+  /* ── Intercepta fetch AJAX: add_to_cart (/cart/add.js) ───────────── */
+  (function () {
+    var _origFetch = window.fetch;
+    if (!_origFetch) return;
+    window.fetch = function (resource, options) {
+      var url = typeof resource === 'string' ? resource
+              : (resource && resource.url) ? resource.url : '';
+      var promise = _origFetch.apply(this, arguments);
+      if (/\/cart\/add(\.js)?/.test(url)) {
+        promise.then(function (resp) {
+          if (resp && resp.ok) { enqueue(base('add_to_cart', {})); flush(); }
+        }).catch(function () {});
+      }
+      return promise;
+    };
+  })();
+
+  /* ── Intercepta XHR AJAX: add_to_cart (/cart/add.js) ─────────────── */
+  (function () {
+    var _origOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (method, url) {
+      if (/\/cart\/add(\.js)?/.test(url)) {
+        this.addEventListener('load', function () {
+          if (this.status >= 200 && this.status < 300) {
+            enqueue(base('add_to_cart', {})); flush();
+          }
+        });
+      }
+      return _origOpen.apply(this, arguments);
+    };
+  })();
 
   /* ── Scroll depth ─────────────────────────────────────────────────── */
   function checkScroll() {
@@ -130,10 +177,8 @@
       document.body.scrollHeight, document.documentElement.scrollHeight,
       document.body.offsetHeight, document.documentElement.offsetHeight
     ) - window.innerHeight;
-
     if (docH <= 0) return;
     var pct = Math.min(100, Math.round((window.scrollY / docH) * 100));
-
     CFG.scrollSteps.forEach(function (step) {
       if (pct >= step && !scrollFired[step]) {
         scrollFired[step] = true;
@@ -148,7 +193,7 @@
     scrollThrottle = setTimeout(function () { scrollThrottle = null; checkScroll(); }, 200);
   }, { passive: true });
 
-  /* ── Movimento do mouse (amostrado a cada 500 ms) ─────────────────── */
+  /* ── Movimento do mouse (amostrado) ──────────────────────────────── */
   document.addEventListener('mousemove', function (e) {
     lastMouse = { clientX: e.clientX, clientY: e.clientY };
   }, { passive: true });
@@ -156,10 +201,8 @@
   var mouseTimer = setInterval(function () {
     if (!lastMouse) return;
     enqueue(base('mouse_move', {
-      x:               lastMouse.clientX,
-      y:               lastMouse.clientY,
-      viewport_width:  window.innerWidth,
-      viewport_height: window.innerHeight,
+      x: lastMouse.clientX, y: lastMouse.clientY,
+      viewport_width: window.innerWidth, viewport_height: window.innerHeight,
     }));
     lastMouse = null;
   }, CFG.mouseInterval);
@@ -171,9 +214,7 @@
   window.addEventListener('beforeunload', function () {
     clearInterval(mouseTimer);
     clearInterval(flushTimer);
-    enqueue(base('page_exit', {
-      time_on_page: Math.round((Date.now() - PAGE_START) / 1000),
-    }));
+    enqueue(base('page_exit', { time_on_page: Math.round((Date.now() - PAGE_START) / 1000) }));
     flush();
   });
 
@@ -182,15 +223,11 @@
     var orig = history.pushState;
     history.pushState = function () {
       orig.apply(this, arguments);
-      PAGE_URL   = window.location.pathname;
-      PAGE_START = Date.now();
-      scrollFired = {};
+      PAGE_URL = window.location.pathname; PAGE_START = Date.now(); scrollFired = {};
       enqueue(base('page_view'));
     };
     window.addEventListener('popstate', function () {
-      PAGE_URL   = window.location.pathname;
-      PAGE_START = Date.now();
-      scrollFired = {};
+      PAGE_URL = window.location.pathname; PAGE_START = Date.now(); scrollFired = {};
       enqueue(base('page_view'));
     });
   })();

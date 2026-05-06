@@ -2,12 +2,46 @@ const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
 
+// Each stage uses a WHERE condition instead of a URL pattern.
+// Dedicated event_type values are preferred; page_url LIKE provides
+// backward-compat for data collected before the snippet update.
 const STAGES = [
-  { key: 'landing',  label: 'Visita',            pattern: '%',           icon: '🏠' },
-  { key: 'product',  label: 'Produto visto',      pattern: '%/products/%',icon: '📦' },
-  { key: 'cart',     label: 'Carrinho',           pattern: '%/cart%',     icon: '🛒' },
-  { key: 'checkout', label: 'Checkout iniciado',  pattern: '%/checkout%', icon: '💳' },
-  { key: 'purchase', label: 'Compra concluída',   pattern: '%/orders/%',  icon: '✅' },
+  {
+    key:   'landing',
+    label: 'Visita',
+    icon:  '🏠',
+    where: "event_type = 'page_view'",
+  },
+  {
+    key:   'product',
+    label: 'Produto visto',
+    icon:  '📦',
+    where: "event_type = 'page_view' AND page_url LIKE '%/products/%'",
+  },
+  {
+    key:   'cart',
+    label: 'Carrinho',
+    icon:  '🛒',
+    // add_to_cart = clique no botão (AJAX ou form) — capturado pelo snippet
+    // fallback: visita direta a /cart
+    where: "event_type = 'add_to_cart' OR (event_type = 'page_view' AND page_url LIKE '%/cart%')",
+  },
+  {
+    key:   'checkout',
+    label: 'Checkout iniciado',
+    icon:  '💳',
+    // checkout_start = clique em link/form de checkout — capturado pelo snippet
+    // fallback: page_view em /checkout (Shopify Plus ou tema headless no mesmo domínio)
+    where: "event_type = 'checkout_start' OR (event_type = 'page_view' AND page_url LIKE '%/checkout%')",
+  },
+  {
+    key:   'purchase',
+    label: 'Compra concluída',
+    icon:  '✅',
+    // purchase = emitido pelo analytics-purchase.liquid na thank-you page
+    // fallback: page_view em /orders/ (usuário logado recarrega a página)
+    where: "event_type = 'purchase' OR (event_type = 'page_view' AND page_url LIKE '%/orders/%')",
+  },
 ];
 
 router.get('/', (req, res) => {
@@ -26,13 +60,12 @@ router.get('/', (req, res) => {
     const row = db.prepare(`
       SELECT COUNT(DISTINCT session_id) AS sessions
       FROM events
-      WHERE page_url LIKE ? ${extra}
-    `).get(stage.pattern, ...extraParams);
+      WHERE (${stage.where}) ${extra}
+    `).get(...extraParams);
 
     return { ...stage, sessions: row.sessions };
   });
 
-  // Compute conversion and drop-off relative to previous stage
   const result = funnel.map((stage, i) => {
     const prevSessions = i === 0 ? stage.sessions : funnel[i - 1].sessions;
     const conversion   = prevSessions > 0 ? Math.round((stage.sessions / prevSessions) * 100) : 0;
