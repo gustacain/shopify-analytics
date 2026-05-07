@@ -4,15 +4,13 @@ import { api } from '../api';
 const SCREENSHOT_W = 1440;
 const SCREENSHOT_H = 900;
 
-const IS_MOBILE = window.innerWidth < 768;
-
-function buildScreenshotUrl(storeUrl, pagePath, nocache = false) {
+function buildScreenshotUrl(storeUrl, pagePath, device, nocache = false) {
   if (!storeUrl || !pagePath) return null;
   const base   = storeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const path   = pagePath.startsWith('/') ? pagePath : '/' + pagePath;
   const target = encodeURIComponent(`https://${base}${path}`);
-  const device = IS_MOBILE ? '&device=mobile' : '';
-  return `https://efficient-love-production-2ed0.up.railway.app/api/screenshot?url=${target}${device}${nocache ? '&nocache=1' : ''}`;
+  const dev    = device === 'mobile' ? '&device=mobile' : '';
+  return `https://efficient-love-production-2ed0.up.railway.app/api/screenshot?url=${target}${dev}${nocache ? '&nocache=1' : ''}`;
 }
 
 export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
@@ -88,7 +86,7 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
 
     if (s) {
       localStorage.setItem('sa_store_url', s);
-      setScreenshotUrl(buildScreenshotUrl(s, p));
+      setScreenshotUrl(buildScreenshotUrl(s, p, filters.device));
       setImgStatus('loading');
     }
 
@@ -200,7 +198,7 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
           <div style={{ ...overlayStyle, flexDirection: 'column', gap: 10 }}>
             <span style={{ color: '#f87171' }}>Falha ao gerar screenshot. Verifique o domínio ou tente novamente.</span>
             <button
-              onClick={() => { setScreenshotUrl(buildScreenshotUrl(storeUrl, page, true)); setImgStatus('loading'); }}
+              onClick={() => { setScreenshotUrl(buildScreenshotUrl(storeUrl, page, filters.device, true)); setImgStatus('loading'); }}
               style={btnStyle(false)}
             >
               🔄 Tentar novamente
@@ -229,7 +227,7 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
       {screenshotUrl && imgStatus === 'ok' && (
         <div style={{ marginTop: 8, textAlign: 'right' }}>
           <button
-            onClick={() => { setScreenshotUrl(buildScreenshotUrl(storeUrl, page, true)); setImgStatus('loading'); }}
+            onClick={() => { setScreenshotUrl(buildScreenshotUrl(storeUrl, page, filters.device, true)); setImgStatus('loading'); }}
             style={{ background: 'none', border: 'none', color: '#475569', fontSize: 12, cursor: 'pointer', padding: 0 }}
           >
             🔄 Atualizar screenshot
