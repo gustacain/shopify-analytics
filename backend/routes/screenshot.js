@@ -5,32 +5,29 @@ const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 h em ms
 const cache     = new Map(); // cacheKey -> { buf: Buffer, ts: number }
 const inflight  = new Map(); // cacheKey -> Promise<Buffer>  (deduplicação)
 
-const VIEWPORTS = {
-  desktop: { width: 1440, height: 900 },
-  mobile:  { width: 390,  height: 844 },
-};
+const MAX_H = 3000;
+
+const WIDTHS = { desktop: 1440, mobile: 390 };
 
 async function capture(url, device) {
   const puppeteer = require('puppeteer-core');
   const chromium  = require('@sparticuz/chromium');
 
-  const viewport = VIEWPORTS[device] || VIEWPORTS.desktop;
+  const w          = WIDTHS[device] || WIDTHS.desktop;
+  const isMobile   = device === 'mobile';
+  const vpOptions  = { width: w, height: MAX_H, deviceScaleFactor: 1,
+                       isMobile: isMobile, hasTouch: isMobile };
 
   const browser = await puppeteer.launch({
     args:            chromium.args,
-    defaultViewport: viewport,
+    defaultViewport: vpOptions,
     executablePath:  await chromium.executablePath(),
     headless:        chromium.headless,
   });
 
   try {
     const page = await browser.newPage();
-
-    if (device === 'mobile') {
-      await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
-    } else {
-      await page.setViewport(viewport);
-    }
+    await page.setViewport(vpOptions);
 
     // Bloqueia recursos desnecessários para acelerar a captura
     await page.setRequestInterception(true);
@@ -41,10 +38,14 @@ async function capture(url, device) {
 
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
+    // Altura real da página, limitada a MAX_H para evitar OOM
+    const pageH = await page.evaluate(max =>
+      Math.min(document.body.scrollHeight, max), MAX_H);
+
     const raw = await page.screenshot({
-      type:     'jpeg',
-      quality:  80,
-      fullPage: true,
+      type:    'jpeg',
+      quality: 80,
+      clip:    { x: 0, y: 0, width: w, height: pageH },
     });
     // puppeteer-core v23+ retorna Uint8Array; garante Buffer para res.send()
     return Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
