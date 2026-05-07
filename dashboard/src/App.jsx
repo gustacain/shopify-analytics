@@ -97,6 +97,8 @@ export default function App() {
   // Navigate from PageList → Heatmap tab with the page pre-selected
   const handleSelectPage = useCallback((pageUrl) => {
     setSelectedPage(pageUrl);
+    setFilters(f => ({ ...f, page: pageUrl }));
+    setApplied(f => ({ ...f, page: pageUrl }));
     setTab('heatmap');
   }, []);
 
