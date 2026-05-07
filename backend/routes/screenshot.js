@@ -11,9 +11,8 @@ const VIEWPORTS = {
 };
 
 async function capture(url, device) {
-  const puppeteer       = require('puppeteer-core');
-  const chromium        = require('@sparticuz/chromium');
-  const { KnownDevices } = puppeteer;
+  const puppeteer = require('puppeteer-core');
+  const chromium  = require('@sparticuz/chromium');
 
   const viewport = VIEWPORTS[device] || VIEWPORTS.desktop;
 
@@ -28,8 +27,7 @@ async function capture(url, device) {
     const page = await browser.newPage();
 
     if (device === 'mobile') {
-      const iphone = KnownDevices['iPhone 13'];
-      await page.emulate(iphone); // viewport 390×844 + user-agent iOS
+      await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
     } else {
       await page.setViewport(viewport);
     }
