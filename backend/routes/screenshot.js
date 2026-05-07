@@ -42,9 +42,9 @@ async function capture(url, device) {
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
     const raw = await page.screenshot({
-      type:    'jpeg',
-      quality: 80,
-      clip:    { x: 0, y: 0, ...viewport },
+      type:     'jpeg',
+      quality:  80,
+      fullPage: true,
     });
     // puppeteer-core v23+ retorna Uint8Array; garante Buffer para res.send()
     return Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
