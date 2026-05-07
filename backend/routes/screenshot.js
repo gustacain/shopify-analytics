@@ -27,7 +27,7 @@ async function capture(url, device) {
     const page = await browser.newPage();
 
     if (device === 'mobile') {
-      await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+      await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
     } else {
       await page.setViewport(viewport);
     }
