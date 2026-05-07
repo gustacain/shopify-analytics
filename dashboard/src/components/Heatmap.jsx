@@ -23,6 +23,9 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
   const [screenshotUrl, setScreenshotUrl] = useState(null);
   const [imgStatus, setImgStatus] = useState('idle'); // idle | loading | ok | error
 
+  const canvasW = filters.device === 'mobile' ? 390  : SCREENSHOT_W;
+  const canvasH = filters.device === 'mobile' ? 844  : SCREENSHOT_H;
+
   const draw = useCallback((clicks) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -41,8 +44,8 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
     const octx   = off.getContext('2d');
 
     clicks.forEach(click => {
-      const vw = click.viewport_width  || SCREENSHOT_W;
-      const vh = click.viewport_height || SCREENSHOT_H;
+      const vw = click.viewport_width  || W;
+      const vh = click.viewport_height || H;
       // clientX/clientY are always within [0, vw] × [0, vh]; clamp for older pageX/Y data
       const cx = Math.min(1, Math.max(0, click.x / vw)) * W;
       const cy = Math.min(1, Math.max(0, click.y / vh)) * H;
@@ -65,8 +68,8 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
 
     // Dot per cluster centroid
     clicks.forEach(click => {
-      const vw = click.viewport_width  || SCREENSHOT_W;
-      const vh = click.viewport_height || SCREENSHOT_H;
+      const vw = click.viewport_width  || W;
+      const vh = click.viewport_height || H;
       const cx = Math.min(1, Math.max(0, click.x / vw)) * W;
       const cy = Math.min(1, Math.max(0, click.y / vh)) * H;
       const t  = click.count / maxCount;
@@ -144,7 +147,7 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
     position: screenshotUrl ? 'absolute' : 'relative',
     top: 0, left: 0,
     width: '100%', height: screenshotUrl ? '100%' : undefined,
-    aspectRatio: screenshotUrl ? undefined : `${SCREENSHOT_W}/${SCREENSHOT_H}`,
+    aspectRatio: screenshotUrl ? undefined : `${canvasW}/${canvasH}`,
     pointerEvents: 'none',
     display: 'block',
   };
@@ -176,7 +179,7 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
       <div style={{
         position: 'relative', borderRadius: 10, overflow: 'hidden',
         background: '#0a0f1a', border: '1px solid #1e293b',
-        aspectRatio: `${SCREENSHOT_W}/${SCREENSHOT_H}`,
+        aspectRatio: `${canvasW}/${canvasH}`,
       }}>
         {/* Screenshot background */}
         {screenshotUrl && (
@@ -218,8 +221,8 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
         {/* Heatmap canvas overlay */}
         <canvas
           ref={canvasRef}
-          width={SCREENSHOT_W}
-          height={SCREENSHOT_H}
+          width={canvasW}
+          height={canvasH}
           style={canvasStyle}
         />
       </div>
