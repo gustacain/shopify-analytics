@@ -81,6 +81,7 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
     const p = (targetPage || page).trim();
     const s = (targetStore !== undefined ? targetStore : storeUrl).trim();
     if (!p) { setError('Informe a URL da página'); return; }
+    setPage(p);
     setError('');
     setLoading(true);
 
@@ -101,7 +102,22 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
     }
   };
 
-  const load = () => loadPageData();
+  // Auto-load quando page vem do Filters do topo (Aplicar)
+  useEffect(() => {
+    if (!filters.page) return;
+    const stored = localStorage.getItem('sa_store_url') || '';
+    setStoreUrl(stored);
+    loadPageData(filters.page, stored);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.page]);
+
+  // Recarrega screenshot quando device muda e já há página carregada
+  useEffect(() => {
+    if (!page || !storeUrl) return;
+    setScreenshotUrl(buildScreenshotUrl(storeUrl, page, filters.device, true));
+    setImgStatus('loading');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.device]);
 
   // Auto-load when page is selected from PageList
   useEffect(() => {
@@ -135,9 +151,9 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
 
   return (
     <div>
-      {/* Inputs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 220px' }}>
+      {/* Domínio da loja (para montar a URL do screenshot) */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 280px' }}>
           <span style={labelStyle}>Domínio da loja</span>
           <input
             value={storeUrl}
@@ -145,21 +161,6 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
             placeholder="minhaloja.myshopify.com"
             style={inputStyle}
           />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '2 1 260px' }}>
-          <span style={labelStyle}>Página</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              value={page}
-              onChange={e => setPage(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && load()}
-              placeholder="/products/seu-produto"
-              style={{ ...inputStyle, flex: 1 }}
-            />
-            <button onClick={load} disabled={loading} style={btnStyle(loading)}>
-              {loading ? 'Carregando…' : 'Carregar'}
-            </button>
-          </div>
         </div>
       </div>
 
