@@ -5,20 +5,34 @@ const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 h em ms
 const cache     = new Map(); // cacheKey -> { buf: Buffer, ts: number }
 const inflight  = new Map(); // cacheKey -> Promise<Buffer>  (deduplicação)
 
-async function capture(url) {
-  const puppeteer = require('puppeteer-core');
-  const chromium  = require('@sparticuz/chromium');
+const VIEWPORTS = {
+  desktop: { width: 1440, height: 900 },
+  mobile:  { width: 390,  height: 844 },
+};
+
+async function capture(url, device) {
+  const puppeteer       = require('puppeteer-core');
+  const chromium        = require('@sparticuz/chromium');
+  const { KnownDevices } = puppeteer;
+
+  const viewport = VIEWPORTS[device] || VIEWPORTS.desktop;
 
   const browser = await puppeteer.launch({
     args:            chromium.args,
-    defaultViewport: { width: 1440, height: 900 },
+    defaultViewport: viewport,
     executablePath:  await chromium.executablePath(),
     headless:        chromium.headless,
   });
 
   try {
     const page = await browser.newPage();
-    await page.setViewport({ width: 1440, height: 900 });
+
+    if (device === 'mobile') {
+      const iphone = KnownDevices['iPhone 13'];
+      await page.emulate(iphone); // viewport 390×844 + user-agent iOS
+    } else {
+      await page.setViewport(viewport);
+    }
 
     // Bloqueia recursos desnecessários para acelerar a captura
     await page.setRequestInterception(true);
@@ -32,7 +46,7 @@ async function capture(url) {
     const raw = await page.screenshot({
       type:    'jpeg',
       quality: 80,
-      clip:    { x: 0, y: 0, width: 1440, height: 900 },
+      clip:    { x: 0, y: 0, ...viewport },
     });
     // puppeteer-core v23+ retorna Uint8Array; garante Buffer para res.send()
     return Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
@@ -42,9 +56,11 @@ async function capture(url) {
 }
 
 // GET /api/screenshot?url=https://loja.myshopify.com/products/xyz
-// GET /api/screenshot?url=...&nocache=1   → ignora cache, gera novo screenshot
+// GET /api/screenshot?url=...&device=mobile  → viewport 390×844 + iPhone 13
+// GET /api/screenshot?url=...&nocache=1      → ignora cache, gera novo screenshot
 router.get('/', async (req, res) => {
   const { url, nocache } = req.query;
+  const device = req.query.device === 'mobile' ? 'mobile' : 'desktop';
 
   if (!url) return res.status(400).json({ error: 'Parâmetro ?url= obrigatório' });
 
@@ -56,8 +72,8 @@ router.get('/', async (req, res) => {
     return res.status(400).json({ error: 'Apenas URLs http/https são permitidas' });
   }
 
-  // Chave de cache = origin + pathname (ignora query string da loja)
-  const key = parsed.origin + parsed.pathname;
+  // Chave de cache inclui device para não misturar desktop/mobile
+  const key = `${parsed.origin}${parsed.pathname}:${device}`;
 
   // Cache hit
   if (!nocache) {
@@ -71,9 +87,9 @@ router.get('/', async (req, res) => {
     }
   }
 
-  // Deduplica requisições concorrentes para a mesma URL
+  // Deduplica requisições concorrentes para a mesma URL+device
   if (!inflight.has(key)) {
-    const promise = capture(url)
+    const promise = capture(url, device)
       .then(buf => { cache.set(key, { buf, ts: Date.now() }); return buf; })
       .finally(() => inflight.delete(key));
     inflight.set(key, promise);

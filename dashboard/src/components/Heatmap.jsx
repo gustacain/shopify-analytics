@@ -4,12 +4,15 @@ import { api } from '../api';
 const SCREENSHOT_W = 1440;
 const SCREENSHOT_H = 900;
 
+const IS_MOBILE = window.innerWidth < 768;
+
 function buildScreenshotUrl(storeUrl, pagePath, nocache = false) {
   if (!storeUrl || !pagePath) return null;
   const base   = storeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const path   = pagePath.startsWith('/') ? pagePath : '/' + pagePath;
   const target = encodeURIComponent(`https://${base}${path}`);
-  return `https://efficient-love-production-2ed0.up.railway.app/api/screenshot?url=${target}${nocache ? '&nocache=1' : ''}`;
+  const device = IS_MOBILE ? '&device=mobile' : '';
+  return `https://efficient-love-production-2ed0.up.railway.app/api/screenshot?url=${target}${device}${nocache ? '&nocache=1' : ''}`;
 }
 
 export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
