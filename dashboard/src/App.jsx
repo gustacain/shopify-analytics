@@ -18,6 +18,8 @@ const TABS = [
   { id: 'settings',  label: '⚙️ Configuração' },
 ];
 
+// AI Analysis tab is embedded in the Heatmap tab — no separate route needed
+
 function StatCard({ label, value, sub, color = '#3b82f6' }) {
   return (
     <div style={{

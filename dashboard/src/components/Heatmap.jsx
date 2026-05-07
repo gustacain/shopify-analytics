@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { api } from '../api';
+import AIAnalysis from './AIAnalysis';
 
 const SCREENSHOT_W = 1440;
 const SCREENSHOT_H = 900;
@@ -284,6 +285,14 @@ export default function Heatmap({ filters, selectedPage, onPageConsumed }) {
           })}
         </div>
       )}
+
+      {/* AI Analysis */}
+      <AIAnalysis
+        pageUrl={page}
+        heatmapData={data}
+        screenshotUrl={screenshotUrl}
+        filters={filters}
+      />
     </div>
   );
 }

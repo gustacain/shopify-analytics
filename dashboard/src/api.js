@@ -36,6 +36,12 @@ export const api = {
     body: JSON.stringify(body),
   }),
   triggerDailySummary: ()       => request('/webhook/daily-summary', { method: 'POST' }),
+
+  aiAnalyze: (body) => request('/ai-analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }),
 };
 
 function qs(obj) {

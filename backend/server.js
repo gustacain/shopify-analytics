@@ -28,6 +28,7 @@ app.use('/api/pages',       require('./routes/pages'));
 app.use('/api/shopify',     require('./routes/shopify'));
 app.use('/api/screenshot',  require('./routes/screenshot'));
 app.use('/api/webhook',     require('./routes/webhook'));
+app.use('/api/ai-analyze',  require('./routes/ai-analyze'));
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
