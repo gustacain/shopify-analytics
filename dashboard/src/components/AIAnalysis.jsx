@@ -1,38 +1,39 @@
 import React, { useState, useCallback } from 'react';
 import { api } from '../api';
 
-const CACHE_TTL = 60 * 60 * 1000; // 1h
+const CACHE_TTL  = 60 * 60 * 1000; // 1h
+const CACHE_VER  = 'v2';            // bump para invalidar caches antigos
 
-function cacheKey(pageUrl) {
-  return `ai_analysis_${pageUrl}`;
-}
+function cacheKey(pageUrl) { return `ai_analysis_${CACHE_VER}_${pageUrl}`; }
 
 function loadCache(pageUrl) {
   try {
     const raw = localStorage.getItem(cacheKey(pageUrl));
     if (!raw) return null;
-    const { ts, data } = JSON.parse(raw);
+    const { ts, analysis, metrics } = JSON.parse(raw);
     if (Date.now() - ts > CACHE_TTL) { localStorage.removeItem(cacheKey(pageUrl)); return null; }
-    return data;
+    return { analysis, metrics };
   } catch { return null; }
 }
 
-function saveCache(pageUrl, data) {
-  try { localStorage.setItem(cacheKey(pageUrl), JSON.stringify({ ts: Date.now(), data })); } catch {}
+function saveCache(pageUrl, analysis, metrics) {
+  try {
+    localStorage.setItem(cacheKey(pageUrl), JSON.stringify({ ts: Date.now(), analysis, metrics }));
+  } catch {}
 }
 
 // ── Score Circle ──────────────────────────────────────────────────────────────
 function ScoreCircle({ score }) {
-  const color  = score >= 75 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
-  const label  = score >= 75 ? 'Bom' : score >= 50 ? 'Médio' : 'Crítico';
-  const r = 38; const c = 2 * Math.PI * r;
-  const dash = ((score / 100) * c).toFixed(1);
+  const color = score >= 75 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
+  const label = score >= 75 ? 'Bom' : score >= 50 ? 'Médio' : 'Crítico';
+  const r = 38; const circ = 2 * Math.PI * r;
+  const dash = ((score / 100) * circ).toFixed(1);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
       <svg width={100} height={100} viewBox="0 0 100 100">
         <circle cx={50} cy={50} r={r} fill="none" stroke="#1e293b" strokeWidth={8} />
         <circle cx={50} cy={50} r={r} fill="none" stroke={color} strokeWidth={8}
-          strokeDasharray={`${dash} ${c}`} strokeLinecap="round"
+          strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
           transform="rotate(-90 50 50)" style={{ transition: 'stroke-dasharray 0.8s ease' }} />
         <text x={50} y={46} textAnchor="middle" fill={color} fontSize={22} fontWeight={800}>{score}</text>
         <text x={50} y={62} textAnchor="middle" fill="#64748b" fontSize={11}>{label}</text>
@@ -44,12 +45,127 @@ function ScoreCircle({ score }) {
   );
 }
 
+// ── Metrics Cards ─────────────────────────────────────────────────────────────
+const METRIC_DEFS = [
+  {
+    key:       'conversion_rate',
+    label:     'Taxa de Conversão',
+    suffix:    '%',
+    benchmark: '2–4%',
+    good:      v => v >= 3,
+    warn:      v => v >= 1,
+    siteKey:   'avg_conversion_site',
+    siteLabel: 'média do site',
+  },
+  {
+    key:       'avg_time_on_page_s',
+    label:     'Tempo Médio',
+    format:    v => v != null ? (v >= 60 ? `${Math.floor(v / 60)}m${v % 60}s` : `${v}s`) : null,
+    benchmark: '>2 min',
+    good:      v => v >= 120,
+    warn:      v => v >= 60,
+  },
+  {
+    key:       'bounce_rate',
+    label:     'Taxa de Rejeição',
+    suffix:    '%',
+    benchmark: '<60%',
+    good:      v => v < 40,
+    warn:      v => v < 60,
+    invertColor: true,
+  },
+  {
+    key:       'add_to_cart_rate',
+    label:     'Add to Cart',
+    suffix:    '%',
+    benchmark: '8–15%',
+    good:      v => v >= 15,
+    warn:      v => v >= 5,
+  },
+  {
+    key:       'checkout_abandon_rate',
+    label:     'Abandono Checkout',
+    suffix:    '%',
+    benchmark: '<70%',
+    good:      v => v < 50,
+    warn:      v => v < 70,
+    invertColor: true,
+  },
+];
+
+function MetricCard({ def, metrics }) {
+  const raw = metrics[def.key];
+  if (raw == null) return null;
+
+  const display   = def.format ? def.format(raw) : `${raw}${def.suffix || ''}`;
+  const isGood    = def.good(raw);
+  const isWarn    = !isGood && def.warn(raw);
+  const color     = isGood ? '#22c55e' : isWarn ? '#f59e0b' : '#ef4444';
+  const bgColor   = isGood ? 'rgba(34,197,94,0.08)' : isWarn ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)';
+  const border    = isGood ? 'rgba(34,197,94,0.2)'  : isWarn ? 'rgba(245,158,11,0.2)'  : 'rgba(239,68,68,0.2)';
+  const icon      = isGood ? '✅' : isWarn ? '⚠️' : '🔴';
+
+  const siteVal = def.siteKey ? metrics[def.siteKey] : null;
+
+  return (
+    <div style={{ background: bgColor, border: `1px solid ${border}`, borderRadius: 10,
+      padding: '12px 16px', flex: '1 1 160px', minWidth: 140 }}>
+      <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase',
+        letterSpacing: '0.05em', marginBottom: 6 }}>
+        {icon} {def.label}
+      </div>
+      <div style={{ fontSize: 24, fontWeight: 800, color, marginBottom: 2 }}>
+        {display}
+      </div>
+      {siteVal != null && (
+        <div style={{ fontSize: 11, color: '#475569', marginBottom: 2 }}>
+          {def.siteLabel}: {siteVal}{def.suffix || ''}
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: '#475569' }}>
+        Benchmark: <span style={{ color: '#64748b' }}>{def.benchmark}</span>
+      </div>
+    </div>
+  );
+}
+
+function PageMetricsSection({ metrics }) {
+  if (!metrics) return null;
+  const hasAny = METRIC_DEFS.some(d => metrics[d.key] != null);
+  if (!hasAny) return null;
+
+  const sources = metrics.traffic_sources?.filter(s => s.source && s.source !== 'null');
+
+  return (
+    <>
+      <SectionHeader>📊 Métricas da Página</SectionHeader>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 4 }}>
+        {METRIC_DEFS.map(def => (
+          <MetricCard key={def.key} def={def} metrics={metrics} />
+        ))}
+      </div>
+      {sources?.length > 0 && (
+        <div style={{ marginTop: 10, fontSize: 12, color: '#64748b' }}>
+          <span style={{ color: '#475569', fontWeight: 600 }}>Tráfego: </span>
+          {sources.map((s, i) => (
+            <span key={i}>
+              <span style={{ color: '#94a3b8' }}>{s.source}</span>
+              <span style={{ color: '#475569' }}> ({s.sessions})</span>
+              {i < sources.length - 1 ? <span style={{ color: '#334155' }}> · </span> : null}
+            </span>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Priority Badge ────────────────────────────────────────────────────────────
 function PriorityBadge({ p }) {
   const map = {
-    alta:  { bg: 'rgba(239,68,68,0.15)',  border: 'rgba(239,68,68,0.4)',  color: '#f87171',  label: '🔴 Alta'  },
-    media: { bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.4)', color: '#fbbf24',  label: '🟡 Média' },
-    baixa: { bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.4)', color: '#60a5fa',  label: '🔵 Baixa' },
+    alta:  { bg: 'rgba(239,68,68,0.15)',  border: 'rgba(239,68,68,0.4)',  color: '#f87171', label: '🔴 Alta'  },
+    media: { bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.4)', color: '#fbbf24', label: '🟡 Média' },
+    baixa: { bg: 'rgba(59,130,246,0.15)', border: 'rgba(59,130,246,0.4)', color: '#60a5fa', label: '🔵 Baixa' },
   };
   const s = map[p] || map.baixa;
   return (
@@ -152,18 +268,17 @@ function NextSteps({ steps }) {
   return (
     <ol style={{ margin: 0, padding: '0 0 0 20px' }}>
       {steps.map((s, i) => (
-        <li key={i} style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 8, lineHeight: 1.5 }}>
-          {s}
-        </li>
+        <li key={i} style={{ fontSize: 13, color: '#e2e8f0', marginBottom: 8, lineHeight: 1.5 }}>{s}</li>
       ))}
     </ol>
   );
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function AIAnalysis({ pageUrl, heatmapData, screenshotUrl, filters }) {
+export default function AIAnalysis({ pageUrl, heatmapData, screenshotUrl }) {
   const [loading,  setLoading]  = useState(false);
-  const [result,   setResult]   = useState(() => pageUrl ? loadCache(pageUrl) : null);
+  const [analysis, setAnalysis] = useState(() => pageUrl ? loadCache(pageUrl)?.analysis  : null);
+  const [metrics,  setMetrics]  = useState(() => pageUrl ? loadCache(pageUrl)?.metrics   : null);
   const [error,    setError]    = useState('');
   const [expanded, setExpanded] = useState(true);
 
@@ -171,22 +286,23 @@ export default function AIAnalysis({ pageUrl, heatmapData, screenshotUrl, filter
     if (!pageUrl || !heatmapData) return;
     if (!forceRefresh) {
       const cached = loadCache(pageUrl);
-      if (cached) { setResult(cached); setExpanded(true); return; }
+      if (cached) { setAnalysis(cached.analysis); setMetrics(cached.metrics); setExpanded(true); return; }
     }
     setLoading(true);
     setError('');
     try {
       const body = {
-        page_url:      pageUrl,
-        top_elements:  heatmapData.top_elements || [],
-        total_clicks:  heatmapData.total        || 0,
-        clusters:      heatmapData.clicks?.length || 0,
-        sessions:      heatmapData.sessions      || 0,
+        page_url:       pageUrl,
+        top_elements:   heatmapData.top_elements || [],
+        total_clicks:   heatmapData.total        || 0,
+        clusters:       heatmapData.clicks?.length || 0,
+        sessions:       heatmapData.sessions      || 0,
         screenshot_url: screenshotUrl || undefined,
       };
       const res = await api.aiAnalyze(body);
-      saveCache(pageUrl, res.analysis);
-      setResult(res.analysis);
+      saveCache(pageUrl, res.analysis, res.metrics);
+      setAnalysis(res.analysis);
+      setMetrics(res.metrics);
       setExpanded(true);
     } catch (e) {
       setError(e.message);
@@ -197,53 +313,47 @@ export default function AIAnalysis({ pageUrl, heatmapData, screenshotUrl, filter
 
   if (!heatmapData) return null;
 
-  const hasResult = !!result;
-  const problems  = result?.problemas || [];
+  const hasResult = !!analysis;
+  const problems  = analysis?.problemas || [];
   const alta      = problems.filter(p => p.prioridade === 'alta');
   const media     = problems.filter(p => p.prioridade === 'media');
   const baixa     = problems.filter(p => p.prioridade === 'baixa');
 
   return (
     <div style={{ marginTop: 24 }}>
-      {/* Trigger button */}
       {!hasResult && !loading && (
         <button onClick={() => analyze(false)} style={btnPrimary}>
           🤖 Analisar com IA
         </button>
       )}
 
-      {/* Loading */}
       {loading && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#94a3b8',
-          fontSize: 13, padding: '12px 0' }}>
-          <Spinner />
-          Analisando comportamento dos usuários…
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10,
+          color: '#94a3b8', fontSize: 13, padding: '12px 0' }}>
+          <Spinner /> Analisando comportamento dos usuários…
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div style={{ color: '#f87171', fontSize: 13, background: 'rgba(239,68,68,0.1)',
           border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '10px 14px', marginTop: 8 }}>
           {error}
-          <button onClick={() => analyze(true)} style={{ ...btnSecondary, marginLeft: 12, fontSize: 12 }}>
+          <button onClick={() => analyze(true)}
+            style={{ ...btnSecondary, marginLeft: 12, fontSize: 12 }}>
             Tentar novamente
           </button>
         </div>
       )}
 
-      {/* Results panel */}
       {hasResult && !loading && (
-        <div style={{ background: '#0c1424', border: '1px solid #1e293b', borderRadius: 12,
-          padding: 20, marginTop: 8 }}>
+        <div style={{ background: '#0c1424', border: '1px solid #1e293b',
+          borderRadius: 12, padding: 20, marginTop: 8 }}>
 
-          {/* Panel header */}
+          {/* Header */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: expanded ? 16 : 0, flexWrap: 'wrap', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#e2e8f0' }}>
-                🤖 Análise de IA
-              </span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#e2e8f0' }}>🤖 Análise de IA</span>
               {alta.length > 0 && (
                 <span style={{ fontSize: 11, background: 'rgba(239,68,68,0.15)',
                   border: '1px solid rgba(239,68,68,0.3)', color: '#f87171',
@@ -253,9 +363,7 @@ export default function AIAnalysis({ pageUrl, heatmapData, screenshotUrl, filter
               )}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => analyze(true)} style={btnSecondary} title="Reanalisar">
-                🔄 Reanalisar
-              </button>
+              <button onClick={() => analyze(true)} style={btnSecondary}>🔄 Reanalisar</button>
               <button onClick={() => setExpanded(v => !v)} style={btnSecondary}>
                 {expanded ? '▲ Recolher' : '▼ Expandir'}
               </button>
@@ -268,15 +376,18 @@ export default function AIAnalysis({ pageUrl, heatmapData, screenshotUrl, filter
               <div style={{ display: 'flex', gap: 24, alignItems: 'center',
                 background: '#0f172a', borderRadius: 10, padding: '16px 20px',
                 marginBottom: 4, flexWrap: 'wrap' }}>
-                <ScoreCircle score={result.score ?? 0} />
+                <ScoreCircle score={analysis.score ?? 0} />
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <div style={{ fontSize: 12, color: '#64748b', textTransform: 'uppercase',
                     letterSpacing: '0.06em', marginBottom: 6 }}>Diagnóstico Geral</div>
                   <p style={{ fontSize: 14, color: '#cbd5e1', lineHeight: 1.6, margin: 0 }}>
-                    {result.resumo}
+                    {analysis.resumo}
                   </p>
                 </div>
               </div>
+
+              {/* Metrics */}
+              <PageMetricsSection metrics={metrics} />
 
               {/* Problems */}
               {problems.length > 0 && (
@@ -310,32 +421,32 @@ export default function AIAnalysis({ pageUrl, heatmapData, screenshotUrl, filter
               )}
 
               {/* Opportunities */}
-              {result.oportunidades?.length > 0 && (
+              {analysis.oportunidades?.length > 0 && (
                 <>
                   <SectionHeader>💡 Oportunidades de Crescimento</SectionHeader>
-                  {result.oportunidades.map((o, i) => <OpportunityCard key={i} o={o} />)}
+                  {analysis.oportunidades.map((o, i) => <OpportunityCard key={i} o={o} />)}
                 </>
               )}
 
               {/* Hot / Cold elements */}
-              {result.elementos_quentes?.length > 0 && (
+              {analysis.elementos_quentes?.length > 0 && (
                 <>
                   <SectionHeader>🔥 Elementos Quentes</SectionHeader>
-                  <TagList items={result.elementos_quentes} color="#f97316" />
+                  <TagList items={analysis.elementos_quentes} color="#f97316" />
                 </>
               )}
-              {result.elementos_ignorados?.length > 0 && (
+              {analysis.elementos_ignorados?.length > 0 && (
                 <>
                   <SectionHeader>👻 Elementos Ignorados</SectionHeader>
-                  <TagList items={result.elementos_ignorados} color="#64748b" />
+                  <TagList items={analysis.elementos_ignorados} color="#64748b" />
                 </>
               )}
 
               {/* Next steps */}
-              {result.proximos_passos?.length > 0 && (
+              {analysis.proximos_passos?.length > 0 && (
                 <>
                   <SectionHeader>✅ Próximos Passos</SectionHeader>
-                  <NextSteps steps={result.proximos_passos} />
+                  <NextSteps steps={analysis.proximos_passos} />
                 </>
               )}
             </>
@@ -348,11 +459,9 @@ export default function AIAnalysis({ pageUrl, heatmapData, screenshotUrl, filter
 
 function Spinner() {
   return (
-    <span style={{
-      display: 'inline-block', width: 14, height: 14,
+    <span style={{ display: 'inline-block', width: 14, height: 14,
       border: '2px solid #334155', borderTopColor: '#6366f1',
-      borderRadius: '50%', animation: 'spin 0.7s linear infinite',
-    }} />
+      borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
   );
 }
 
@@ -360,8 +469,7 @@ const btnPrimary = {
   padding: '9px 20px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
   border: 'none', borderRadius: 8, color: '#fff',
   cursor: 'pointer', fontWeight: 700, fontSize: 14,
-  boxShadow: '0 0 20px rgba(99,102,241,0.3)',
-  transition: 'opacity 0.15s',
+  boxShadow: '0 0 20px rgba(99,102,241,0.3)', transition: 'opacity 0.15s',
 };
 
 const btnSecondary = {
