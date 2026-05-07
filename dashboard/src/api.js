@@ -15,7 +15,9 @@ export const api = {
   getHeatmap:      (page, f={}) => request(`/heatmap?${qs({ page, ...f })}`),
   getScrollDepth:  (f={})       => request(`/scroll-depth?${qs(f)}`),
   getSessions:     (f={})       => request(`/sessions?${qs(f)}`),
-  getSession:      (id)         => request(`/sessions/${encodeURIComponent(id)}`),
+  getSession:        (id) => request(`/sessions/${encodeURIComponent(id)}`),
+  getSessionReplay:  (id) => request(`/sessions/${encodeURIComponent(id)}/replay`),
+  getSessionSummary: (id) => request(`/sessions/${encodeURIComponent(id)}/summary`),
   getFunnel:       (f={})       => request(`/funnel?${qs(f)}`),
   getPages:        (f={})       => request(`/pages?${qs(f)}`),
 

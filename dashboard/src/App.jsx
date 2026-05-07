@@ -3,10 +3,11 @@ import Filters     from './components/Filters';
 import Heatmap     from './components/Heatmap';
 import ScrollDepth from './components/ScrollDepth';
 import Funnel      from './components/Funnel';
-import Sessions    from './components/Sessions';
-import PageList    from './components/PageList';
-import Settings    from './components/Settings';
-import { api }    from './api';
+import Sessions      from './components/Sessions';
+import SessionReplay from './components/SessionReplay';
+import PageList      from './components/PageList';
+import Settings      from './components/Settings';
+import { api }       from './api';
 
 const TABS = [
   { id: 'overview',  label: '📊 Visão Geral' },
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'heatmap',   label: '🔥 Mapa de Calor' },
   { id: 'scroll',    label: '📜 Scroll Depth' },
   { id: 'sessions',  label: '👤 Sessões' },
+  { id: 'replay',    label: '▶️ Session Replay' },
   { id: 'n8n',       label: '🔗 n8n / Webhooks' },
   { id: 'settings',  label: '⚙️ Configuração' },
 ];
@@ -117,7 +119,7 @@ export default function App() {
     }
   };
 
-  const showFilters = !['settings', 'pages', 'n8n'].includes(tab);
+  const showFilters = !['settings', 'pages', 'n8n', 'replay'].includes(tab);
   const showPage    = tab === 'heatmap' || tab === 'scroll';
 
   return (
@@ -229,6 +231,13 @@ export default function App() {
         {/* ── SESSIONS ────────────────────────────────────────────── */}
         {tab === 'sessions' && (
           <Card title="Sessões Gravadas"><Sessions filters={applied} /></Card>
+        )}
+
+        {/* ── SESSION REPLAY ──────────────────────────────────────── */}
+        {tab === 'replay' && (
+          <Card title="">
+            <SessionReplay filters={applied} />
+          </Card>
         )}
 
         {/* ── N8N ─────────────────────────────────────────────────── */}
